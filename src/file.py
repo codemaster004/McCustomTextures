@@ -5,13 +5,23 @@ import zipfile
 import hashlib
 from datetime import datetime
 
+
+import dropbox
+
 FINAL_PACK_DIR = 'resource_packs/final-texture-pack'
 ASSETS_PACKS_DIR = 'resource_packs/temp-packs'
 BASE_MC_PACK_DIR = 'resource_packs/minecraft-base'
+ZIPPED_PACK_DIR = 'packed_zips'
 
 SUB_FOLDERS = ['assets', 'minecraft']
 TEXTURE_FOLDER = ['textures', 'item']
 MODELS_FOLDER = ['models', 'item']
+
+ACCESS_TOKEN = os.environ.get('ACCESS_TOKEN')
+
+
+dbx = dropbox.Dropbox(ACCESS_TOKEN)
+dbx.users_get_current_account()
 
 
 def clear_final_pack():
@@ -69,6 +79,47 @@ def calculate_sha1(file_path):
 			sha1_hash.update(data)
 	
 	return sha1_hash.hexdigest()
+
+
+def generate_dropbox_link(dropbox_path):
+	shared_link = dbx.sharing_create_shared_link_with_settings(dropbox_path)
+	
+	shared_link_url = shared_link.url
+	
+	downloadable_link = shared_link_url[:-1] + '1'
+	print(downloadable_link)
+
+
+def upload_to_dropbox(file_path, file_name):
+	dropbox_path = f'/{file_name}'
+	
+	# Upload the file
+	path = os.path.join(file_path, file_name)
+	with open(path, 'rb') as file:
+		
+		dbx.files_upload(file.read(), dropbox_path)
+	
+	generate_dropbox_link(dropbox_path)
+
+
+def handle_created_pack():
+	# 8. Zip the resulting pack
+	files_to_zip = []
+	with os.scandir(FINAL_PACK_DIR) as entries:
+		for entry in entries:
+			files_to_zip.append(os.path.join(FINAL_PACK_DIR, entry.name))
+	
+	today = datetime.now().strftime("%d%m%Y-%H%M")
+	file_name = f'CustomServerPack-{today}.zip'
+	output_zip = os.path.join(ZIPPED_PACK_DIR, file_name)
+	
+	zip_files(output_zip, files_to_zip)
+	
+	# 9. Generate SHA-1 for the zip file
+	sha1 = calculate_sha1(output_zip)
+	print(f"SHA-1 hash: {sha1}")
+	
+	upload_to_dropbox(ZIPPED_PACK_DIR, file_name)
 
 
 def add_custom_model():
@@ -165,24 +216,10 @@ def add_custom_model():
 	with open(file_path, 'w') as f:
 		json.dump(mc_model, f)
 	
-	# 8. Zip the resulting pack
-	files_to_zip = []
-	with os.scandir(FINAL_PACK_DIR) as entries:
-		for entry in entries:
-			files_to_zip.append(os.path.join(FINAL_PACK_DIR, entry.name))
-			
-	today = datetime.now().strftime("%d%m%Y_%H:%M")
-	output_zip = f'CustomServerPack-{today}.zip'
-	
-	zip_files(output_zip, files_to_zip)
-	
-	# 9. Generate SHA-1 for the zip file
-	sha1 = calculate_sha1(output_zip)
-	print(f"SHA-1 hash: {sha1}")
-	
 
 if __name__ == '__main__':
 	pass
 	clear_final_pack()
 	generate_basic_pack_structure()
 	add_custom_model()
+	handle_created_pack()
