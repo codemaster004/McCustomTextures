@@ -1,6 +1,7 @@
 import os
 import shutil
 import json
+import zipfile
 
 FINAL_PACK_DIR = 'resource_packs/final-texture-pack'
 ASSETS_PACKS_DIR = 'resource_packs/temp-packs'
@@ -38,6 +39,13 @@ def generate_basic_pack_structure():
 	for folder_name in required_folders:
 		new_folder_path = os.path.join(new_assets_mc_path, folder_name)
 		os.makedirs(new_folder_path)
+
+
+def zip_files(output_path, file_paths):
+	with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+		for file_path in file_paths:
+			# Add each file to the zip archive
+			zipf.write(file_path, os.path.basename(file_path))
 
 
 def add_custom_model():
@@ -133,10 +141,19 @@ def add_custom_model():
 	
 	with open(file_path, 'w') as f:
 		json.dump(mc_model, f)
-
+	
+	# 8. Zip the resulting pack
+	files_to_zip = []
+	with os.scandir(FINAL_PACK_DIR) as entries:
+		for entry in entries:
+			files_to_zip.append(os.path.join(FINAL_PACK_DIR, entry.name))
+	output_zip = 'CustomServerPack.zip'
+	
+	zip_files(output_zip, files_to_zip)
+	
 
 if __name__ == '__main__':
 	pass
-	# clear_final_pack()
-	# generate_basic_pack_structure()
+	clear_final_pack()
+	generate_basic_pack_structure()
 	add_custom_model()
