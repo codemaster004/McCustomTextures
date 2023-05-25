@@ -2,6 +2,7 @@ import os
 import shutil
 import json
 import zipfile
+import hashlib
 from datetime import datetime
 
 FINAL_PACK_DIR = 'resource_packs/final-texture-pack'
@@ -52,6 +53,24 @@ def zip_files(output_path, file_paths):
 			zipf.write(file_path, os.path.basename(file_path))
 
 
+def calculate_sha1(file_path):
+	"""
+	Generates SHA-1 hash for given zip file
+	:param file_path: path to tge zip file
+	:return: Hash
+	"""
+	sha1_hash = hashlib.sha1()
+	
+	with open(file_path, 'rb') as file:
+		while True:
+			data = file.read(4096)  # Read file data in chunks
+			if not data:
+				break
+			sha1_hash.update(data)
+	
+	return sha1_hash.hexdigest()
+
+
 def add_custom_model():
 	"""
 	Add new custom texture for mc item
@@ -60,7 +79,7 @@ def add_custom_model():
 	is_a_block = False
 	for_mc_item = 'totem_of_undying'
 	
-	model_name = 'wither_totem'
+	model_name = 'py_totem'
 	custom_model_json_path = 'resource_packs/temp-packs/py-totem/assets/minecraft/models/item/totem_of_undying.json'
 	custom_texture_path = 'resource_packs/temp-packs/py-totem/assets/minecraft/textures/item/totem_of_undying.png'
 	
@@ -156,6 +175,10 @@ def add_custom_model():
 	output_zip = f'CustomServerPack-{today}.zip'
 	
 	zip_files(output_zip, files_to_zip)
+	
+	# 9. Generate SHA-1 for the zip file
+	sha1 = calculate_sha1(output_zip)
+	print(f"SHA-1 hash: {sha1}")
 	
 
 if __name__ == '__main__':
