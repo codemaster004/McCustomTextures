@@ -30,3 +30,10 @@ env/
 # Testing files
 .coverage
 .tox/
+
+# Zips
+*.zip
+
+# Ignore generated resource pack
+src/resource_packs/final-texture-pack
+src/resource_packs/temp-packs
