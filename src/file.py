@@ -2,6 +2,7 @@ import os
 import shutil
 import json
 import zipfile
+from datetime import datetime
 
 FINAL_PACK_DIR = 'resource_packs/final-texture-pack'
 ASSETS_PACKS_DIR = 'resource_packs/temp-packs'
@@ -42,6 +43,9 @@ def generate_basic_pack_structure():
 
 
 def zip_files(output_path, file_paths):
+	""""
+	Zipping given files into one zipfile
+	"""
 	with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
 		for file_path in file_paths:
 			# Add each file to the zip archive
@@ -57,8 +61,8 @@ def add_custom_model():
 	for_mc_item = 'totem_of_undying'
 	
 	model_name = 'wither_totem'
-	custom_model_json_path = 'resource_packs/temp-packs/test-totem/assets/minecraft/models/totem_of_undying.json'
-	custom_texture_path = 'resource_packs/temp-packs/test-totem/assets/minecraft/textures/item/totem_of_undying.png'
+	custom_model_json_path = 'resource_packs/temp-packs/py-totem/assets/minecraft/models/item/totem_of_undying.json'
+	custom_texture_path = 'resource_packs/temp-packs/py-totem/assets/minecraft/textures/item/totem_of_undying.png'
 	
 	# 1. Copy Real model item and create its folder
 	mc_resource_path = [
@@ -147,7 +151,9 @@ def add_custom_model():
 	with os.scandir(FINAL_PACK_DIR) as entries:
 		for entry in entries:
 			files_to_zip.append(os.path.join(FINAL_PACK_DIR, entry.name))
-	output_zip = 'CustomServerPack.zip'
+			
+	today = datetime.now().strftime("%d%m%Y_%H:%M")
+	output_zip = f'CustomServerPack-{today}.zip'
 	
 	zip_files(output_zip, files_to_zip)
 	
