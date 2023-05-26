@@ -4,7 +4,7 @@ import json
 import zipfile
 import hashlib
 from datetime import datetime
-
+import subprocess
 
 import dropbox
 
@@ -53,14 +53,21 @@ def generate_basic_pack_structure():
 		os.makedirs(new_folder_path)
 
 
-def zip_files(output_path, file_paths):
+def zip_files(output_path, files_path, folder_path):
 	""""
 	Zipping given files into one zipfile
 	"""
 	with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-		for file_path in file_paths:
-			# Add each file to the zip archive
-			zipf.write(file_path, os.path.basename(file_path))
+		# Add the file to the zip archive
+		for path in files_path:
+			zipf.write(path, os.path.basename(path))
+		
+		# Add the folder and its contents to the zip archive
+		for root, _, files in os.walk(folder_path):
+			for file in files:
+				file_path = os.path.join(root, file)
+				arcname = os.path.relpath(file_path, folder_path)
+				zipf.write(file_path, os.path.join(os.path.basename(folder_path), arcname))
 
 
 def calculate_sha1(file_path):
@@ -81,6 +88,11 @@ def calculate_sha1(file_path):
 	return sha1_hash.hexdigest()
 
 
+def copy_to_clipboard(text):
+	process = subprocess.Popen('pbcopy', stdin=subprocess.PIPE, universal_newlines=True)
+	process.communicate(input=text)
+
+
 def generate_dropbox_link(dropbox_path):
 	shared_link = dbx.sharing_create_shared_link_with_settings(dropbox_path)
 	
@@ -88,6 +100,8 @@ def generate_dropbox_link(dropbox_path):
 	
 	downloadable_link = shared_link_url[:-1] + '1'
 	print(downloadable_link)
+	
+	copy_to_clipboard(downloadable_link)
 
 
 def upload_to_dropbox(file_path, file_name):
@@ -107,13 +121,16 @@ def handle_created_pack():
 	files_to_zip = []
 	with os.scandir(FINAL_PACK_DIR) as entries:
 		for entry in entries:
-			files_to_zip.append(os.path.join(FINAL_PACK_DIR, entry.name))
+			if entry.is_file():
+				files_to_zip.append(os.path.join(FINAL_PACK_DIR, entry.name))
+			elif entry.name == 'assets':
+				assets_path = os.path.join(FINAL_PACK_DIR, entry.name)
 	
 	today = datetime.now().strftime("%d%m%Y-%H%M")
 	file_name = f'CustomServerPack-{today}.zip'
 	output_zip = os.path.join(ZIPPED_PACK_DIR, file_name)
 	
-	zip_files(output_zip, files_to_zip)
+	zip_files(output_zip, files_to_zip, assets_path)
 	
 	# 9. Generate SHA-1 for the zip file
 	sha1 = calculate_sha1(output_zip)
