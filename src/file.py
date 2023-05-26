@@ -5,8 +5,12 @@ import zipfile
 import hashlib
 from datetime import datetime
 import subprocess
+import argparse
 
 import dropbox
+from dotenv import load_dotenv
+
+load_dotenv()
 
 FINAL_PACK_DIR = 'resource_packs/final-texture-pack'
 ASSETS_PACKS_DIR = 'resource_packs/temp-packs'
@@ -20,8 +24,13 @@ MODELS_FOLDER = ['models', 'item']
 ACCESS_TOKEN = os.environ.get('ACCESS_TOKEN')
 
 
-dbx = dropbox.Dropbox(ACCESS_TOKEN)
-dbx.users_get_current_account()
+# dbx = dropbox.Dropbox(ACCESS_TOKEN)
+# dbx.users_get_current_account()
+
+parser = argparse.ArgumentParser(description='Automation for creating Custom Server Resource packs')
+parser.add_argument('add_model', help='Add texture model')
+parser.add_argument('-f', help='Force adding model potentially overwrite existing one')
+parser.add_argument('-n', '--name', help='Name the custom model')
 
 
 def clear_final_pack():
@@ -234,9 +243,20 @@ def add_custom_model():
 		json.dump(mc_model, f)
 	
 
+def cli_input_handler():
+	args = parser.parse_args()
+	arg_value = args.arg_name
+	optional_arg_value = args.optional_arg
+	
+	print('Argument value:', arg_value)
+	if optional_arg_value:
+		print('Optional argument value:', optional_arg_value)
+
+
 if __name__ == '__main__':
 	pass
-	clear_final_pack()
-	generate_basic_pack_structure()
-	add_custom_model()
-	handle_created_pack()
+	cli_input_handler()
+	# clear_final_pack()
+	# generate_basic_pack_structure()
+	# add_custom_model()
+	# handle_created_pack()
