@@ -2,14 +2,47 @@ import os
 import shutil
 import json
 import zipfile
+import hashlib
+from datetime import datetime
+import subprocess
+import argparse
+
+import dropbox
+from dotenv import load_dotenv
+
+load_dotenv()
 
 FINAL_PACK_DIR = 'resource_packs/final-texture-pack'
 ASSETS_PACKS_DIR = 'resource_packs/temp-packs'
 BASE_MC_PACK_DIR = 'resource_packs/minecraft-base'
+ZIPPED_PACK_DIR = 'packed_zips'
 
 SUB_FOLDERS = ['assets', 'minecraft']
 TEXTURE_FOLDER = ['textures', 'item']
 MODELS_FOLDER = ['models', 'item']
+
+ACCESS_TOKEN = os.environ.get('ACCESS_TOKEN')
+
+
+dbx = dropbox.Dropbox(ACCESS_TOKEN)
+dbx.users_get_current_account()
+
+parser = argparse.ArgumentParser(description='Automation for creating Custom Server Resource packs')
+parser.add_argument('-a', '--add_model', type=str, help='Add texture model')
+parser.add_argument('-f', '--force', action='store_true', help='Force adding model potentially overwrite existing one')
+parser.add_argument('-n', '--name', type=str, help='Name the custom model')
+# parser.add_argument('box_token', help='Change dropbox Token')
+
+
+def cli_input_handler():
+	args = parser.parse_args()
+	optional_arg_value = args.optional_arg
+	
+	if args.add_model:
+		model_path = args.add_model
+		for_mc_item = os.path.splitext(os.path.basename(model_path))[0]
+		if args.name:
+			custom_name = args.name
 
 
 def clear_final_pack():
@@ -41,11 +74,90 @@ def generate_basic_pack_structure():
 		os.makedirs(new_folder_path)
 
 
-def zip_files(output_path, file_paths):
+def zip_files(output_path, files_path, folder_path):
+	""""
+	Zipping given files into one zipfile
+	"""
 	with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-		for file_path in file_paths:
-			# Add each file to the zip archive
-			zipf.write(file_path, os.path.basename(file_path))
+		# Add the file to the zip archive
+		for path in files_path:
+			zipf.write(path, os.path.basename(path))
+		
+		# Add the folder and its contents to the zip archive
+		for root, _, files in os.walk(folder_path):
+			for file in files:
+				file_path = os.path.join(root, file)
+				arcname = os.path.relpath(file_path, folder_path)
+				zipf.write(file_path, os.path.join(os.path.basename(folder_path), arcname))
+
+
+def calculate_sha1(file_path):
+	"""
+	Generates SHA-1 hash for given zip file
+	:param file_path: path to tge zip file
+	:return: Hash
+	"""
+	sha1_hash = hashlib.sha1()
+	
+	with open(file_path, 'rb') as file:
+		while True:
+			data = file.read(4096)  # Read file data in chunks
+			if not data:
+				break
+			sha1_hash.update(data)
+	
+	return sha1_hash.hexdigest()
+
+
+def copy_to_clipboard(text):
+	process = subprocess.Popen('pbcopy', stdin=subprocess.PIPE, universal_newlines=True)
+	process.communicate(input=text)
+
+
+def generate_dropbox_link(dropbox_path):
+	shared_link = dbx.sharing_create_shared_link_with_settings(dropbox_path)
+	
+	shared_link_url = shared_link.url
+	
+	downloadable_link = shared_link_url[:-1] + '1'
+	print(downloadable_link)
+	
+	copy_to_clipboard(downloadable_link)
+
+
+def upload_to_dropbox(file_path, file_name):
+	dropbox_path = f'/{file_name}'
+	
+	# Upload the file
+	path = os.path.join(file_path, file_name)
+	with open(path, 'rb') as file:
+		
+		dbx.files_upload(file.read(), dropbox_path)
+	
+	generate_dropbox_link(dropbox_path)
+
+
+def handle_created_pack():
+	# 8. Zip the resulting pack
+	files_to_zip = []
+	with os.scandir(FINAL_PACK_DIR) as entries:
+		for entry in entries:
+			if entry.is_file():
+				files_to_zip.append(os.path.join(FINAL_PACK_DIR, entry.name))
+			elif entry.name == 'assets':
+				assets_path = os.path.join(FINAL_PACK_DIR, entry.name)
+	
+	today = datetime.now().strftime("%d%m%Y-%H%M")
+	file_name = f'CustomServerPack-{today}.zip'
+	output_zip = os.path.join(ZIPPED_PACK_DIR, file_name)
+	
+	zip_files(output_zip, files_to_zip, assets_path)
+	
+	# 9. Generate SHA-1 for the zip file
+	sha1 = calculate_sha1(output_zip)
+	print(f"SHA-1 hash: {sha1}")
+	
+	upload_to_dropbox(ZIPPED_PACK_DIR, file_name)
 
 
 def add_custom_model():
@@ -56,9 +168,9 @@ def add_custom_model():
 	is_a_block = False
 	for_mc_item = 'totem_of_undying'
 	
-	model_name = 'wither_totem'
-	custom_model_json_path = 'resource_packs/temp-packs/test-totem/assets/minecraft/models/totem_of_undying.json'
-	custom_texture_path = 'resource_packs/temp-packs/test-totem/assets/minecraft/textures/item/totem_of_undying.png'
+	model_name = 'py_totem'
+	custom_model_json_path = 'resource_packs/temp-packs/py-totem/assets/minecraft/models/item/totem_of_undying.json'
+	custom_texture_path = 'resource_packs/temp-packs/py-totem/assets/minecraft/textures/item/totem_of_undying.png'
 	
 	# 1. Copy Real model item and create its folder
 	mc_resource_path = [
@@ -141,19 +253,12 @@ def add_custom_model():
 	
 	with open(file_path, 'w') as f:
 		json.dump(mc_model, f)
-	
-	# 8. Zip the resulting pack
-	files_to_zip = []
-	with os.scandir(FINAL_PACK_DIR) as entries:
-		for entry in entries:
-			files_to_zip.append(os.path.join(FINAL_PACK_DIR, entry.name))
-	output_zip = 'CustomServerPack.zip'
-	
-	zip_files(output_zip, files_to_zip)
-	
+
 
 if __name__ == '__main__':
 	pass
-	clear_final_pack()
-	generate_basic_pack_structure()
-	add_custom_model()
+	cli_input_handler()
+	# clear_final_pack()
+	# generate_basic_pack_structure()
+	# add_custom_model()
+	# handle_created_pack()
